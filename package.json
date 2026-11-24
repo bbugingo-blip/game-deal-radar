@@ -1,0 +1,15 @@
+{
+  "name": "game-deal-radar",
+  "version": "1.0.0",
+  "description": "Game price comparison and deal finder built on the CheapShark API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=18" },
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}
