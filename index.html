@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Game Deal Radar</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>🎮 Game Deal Radar</h1>
+    <p>Find the cheapest PC game deals across Steam, Epic, GOG and more.</p>
+  </header>
+
+  <main>
+    <form id="search-form" autocomplete="off">
+      <label class="wide">Game title (leave empty for top deals)
+        <input id="title" type="text" maxlength="80" placeholder="e.g. Need for Speed, FIFA, Witcher">
+      </label>
+      <label>Genre <select id="genre"><option value="">All genres</option></select></label>
+      <label>Store <select id="store"><option value="">All stores</option></select></label>
+      <label>Max price (USD) <input id="maxPrice" type="number" min="0" max="200" value="30"></label>
+      <label class="check"><input id="onSale" type="checkbox" checked> Only discounted</label>
+      <button type="submit">Search deals</button>
+    </form>
+
+    <h2>Famous games <span id="strip-hint">click a poster to see its deals</span></h2>
+    <div id="strip" class="strip"></div>
+
+    <div id="status" role="status" aria-live="polite"></div>
+
+    <section id="results" hidden>
+      <div class="controls">
+        <label>Min discount
+          <select id="minDiscount">
+            <option value="0">Any</option><option value="25">25%+</option>
+            <option value="50">50%+</option><option value="75">75%+</option>
+          </select>
+        </label>
+        <label>Sort by
+          <select id="sort">
+            <option value="deal">Best deal</option>
+            <option value="priceAsc">Price: low to high</option>
+            <option value="priceDesc">Price: high to low</option>
+            <option value="savings">Biggest discount</option>
+            <option value="rating">Steam rating</option>
+            <option value="title">Title A–Z</option>
+          </select>
+        </label>
+        <label class="check"><input id="wishOnly" type="checkbox"> ★ Wishlist only (<span id="wishCount">0</span>)</label>
+      </div>
+      <p id="summary"></p>
+      <ul id="cards" class="cards"></ul>
+    </section>
+  </main>
+
+  <footer>
+    Deal data from <a href="https://www.cheapshark.com/" target="_blank" rel="noopener">CheapShark</a>.
+    Posters from Steam; game artwork belongs to its publishers. Prices in USD and may change.
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
