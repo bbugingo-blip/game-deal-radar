@@ -7,8 +7,8 @@ A web app that finds the **cheapest PC game deals** across Steam, Epic, GOG and 
 | | |
 |---|---|
 | 🎥 Demo video (≤ 2 min) | `ADD_VIDEO_LINK` |
-| 🌐 Load balancer URL | `http://LB01_IP` |
-| Web01 / Web02 | `http://WEB01_IP` / `http://WEB02_IP` |
+| 🌐 Load balancer URL | http://18.170.221.244 |
+| Web01 / Web02 | http://18.132.43.17 / http://35.178.171.98 |
 | Login / API keys needed | **None.** No accounts and no API key (see [Security](#security)) |
 
 ## Features
@@ -26,7 +26,7 @@ A web app that finds the **cheapest PC game deals** across Steam, Epic, GOG and 
 ## Architecture
 
 ```
-Browser ──> Lb01 (nginx, round-robin) ──┬─> Web01 (nginx :80 -> Node :3000)
+Browser ──> Lb01 (HAProxy, round-robin) ──┬─> Web01 (nginx :80 -> Node :3000)
                                         └─> Web02 (nginx :80 -> Node :3000)
                                                     │
                                            CheapShark API (server side)
@@ -37,7 +37,7 @@ Browser ──> Lb01 (nginx, round-robin) ──┬─> Web01 (nginx :80 -> Node
 Requires Node.js 18+.
 
 ```bash
-git clone https://github.com/YOUR_USER/game-deal-radar.git
+git clone https://github.com/bbugingo-blip/game-deal-radar.git
 cd game-deal-radar
 npm install
 npm start            # http://localhost:3000
@@ -56,7 +56,7 @@ sudo apt update && sudo apt install -y nginx curl
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt install -y nodejs
 
 # 2. Get the code
-sudo git clone https://github.com/YOUR_USER/game-deal-radar.git /var/www/game-deal-radar
+sudo git clone https://github.com/bbugingo-blip/game-deal-radar.git /var/www/game-deal-radar
 cd /var/www/game-deal-radar && sudo npm install --omit=dev
 
 # 3. Run as a service (auto-restart, starts on boot)
@@ -73,40 +73,68 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ### Load balancer (Lb01)
 
-```bash
-sudo apt update && sudo apt install -y nginx
-sudo cp deploy/nginx-loadbalancer.conf /etc/nginx/sites-available/game-deal-radar-lb
-# edit the file: replace WEB01_IP and WEB02_IP
-sudo ln -sf /etc/nginx/sites-available/game-deal-radar-lb /etc/nginx/sites-enabled/
-sudo rm -f /etc/nginx/sites-enabled/default
-sudo nginx -t && sudo systemctl reload nginx
+Lb01 (`7257-lb-01`, 18.170.221.244) runs **HAProxy**, which balances traffic across both web servers. The relevant part of `/etc/haproxy/haproxy.cfg` is saved in `deploy/haproxy.cfg`:
+
+```
+frontend http-in
+    bind *:80
+    mode http
+    default_backend web_servers
+
+backend web_servers
+    mode http
+    balance roundrobin
+    server 7257-web-01 18.132.43.17:80 check
+    server 7257-web-02 35.178.171.98:80 check
 ```
 
-Configuration notes: nginx's default **round-robin** alternates requests between the two upstreams. `max_fails=3 fail_timeout=10s` takes a dead server out of rotation briefly, `proxy_next_upstream` retries a failed request on the other server, and the `X-Upstream` header shows which backend answered.
+- `balance roundrobin` sends requests to the two servers in turn.
+- `check` makes HAProxy health-check each server and stop sending traffic to one that is down.
+
+To apply or change the configuration:
+
+```bash
+ssh ubuntu@18.170.221.244
+sudo nano /etc/haproxy/haproxy.cfg            # edit the frontend/backend sections
+sudo haproxy -c -f /etc/haproxy/haproxy.cfg   # check the syntax
+sudo systemctl reload haproxy
+```
+
+Every response includes an `X-Served-By` header with the web server's hostname, which shows which server handled the request.
 
 ### Testing the load balancer
 
 ```bash
 # Alternates between the two hostnames
-for i in 1 2 3 4 5 6; do curl -s http://LB01_IP/health; echo; done
+for i in 1 2 3 4 5 6; do curl -s http://18.170.221.244/health; echo; done
 
 # Header view
-curl -sI http://LB01_IP/ | grep -Ei 'x-served-by|x-upstream'
+curl -sI http://18.170.221.244/ | grep -i x-served-by
 
 # Failover: stop one backend, requests keep working, then restore
-ssh WEB01 'sudo systemctl stop game-deal-radar'
-for i in 1 2 3 4; do curl -s http://LB01_IP/health; echo; done   # only Web02
-ssh WEB01 'sudo systemctl start game-deal-radar'
+ssh ubuntu@18.132.43.17 'sudo systemctl stop game-deal-radar'
+for i in 1 2 3 4; do curl -s http://18.170.221.244/health; echo; done   # only Web02
+ssh ubuntu@18.132.43.17 'sudo systemctl start game-deal-radar'
 ```
 
-Result observed: _ADD YOUR OBSERVATIONS / SCREENSHOT HERE_.
+Result observed, running `curl -s 127.0.0.1/health` six times on Lb01: the responses alternate between the two servers.
+
+```
+{"status":"ok","server":"7257-web-01"}
+{"status":"ok","server":"7257-web-02"}
+{"status":"ok","server":"7257-web-01"}
+{"status":"ok","server":"7257-web-02"}
+{"status":"ok","server":"7257-web-01"}
+{"status":"ok","server":"7257-web-02"}
+```
 
 ## APIs and credits
 
 - **Posters:** Steam store header images (artwork belongs to each game's publisher).
 - **[CheapShark API](https://apidocs.cheapshark.com/)**: game deals and store list. Free, no key. Deal data and links by [CheapShark](https://www.cheapshark.com/).
 - [Express](https://expressjs.com/) (MIT): web server.
-- [nginx](https://nginx.org/): reverse proxy and load balancer.
+- [nginx](https://nginx.org/): reverse proxy on each web server.
+- [HAProxy](https://www.haproxy.org/): load balancer on Lb01.
 
 ## Security
 
@@ -125,6 +153,6 @@ Result observed: _ADD YOUR OBSERVATIONS / SCREENSHOT HERE_.
 server.js          Express API proxy, cache, rate limit, error handling
 games.js           Famous games catalog (Steam id, title, genre) used for genres and posters
 public/            Frontend (HTML, CSS, vanilla JS)
-deploy/            systemd unit and nginx configs (web servers + load balancer)
+deploy/            systemd unit, nginx config (web servers), HAProxy config (load balancer)
 test/              Node test runner tests (CheapShark is mocked)
 ```
