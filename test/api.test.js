@@ -10,7 +10,7 @@ let upstreamCalls = 0;
 async function fakeUpstream(url) {
   upstreamCalls++;
   if (mode === 'down') throw new TypeError('network down');
-  if (mode === '500') return { ok: false, status: 500 };
+  if (mode === '500') return { ok: false, status: 500, text: async () => '' };
   if (mode === 'badjson') return { ok: true, json: async () => { throw new Error('bad json'); } };
   const body = url.includes('/stores')
     ? [{ storeID: '1', storeName: 'Steam', isActive: 1 }, { storeID: '9', storeName: 'Old', isActive: 0 }]
