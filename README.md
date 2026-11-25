@@ -145,8 +145,16 @@ Result observed, running `curl -s 127.0.0.1/health` six times on Lb01: the respo
 
 ## Challenges and how I solved them
 
-- _Fill in with your own experience, e.g.:_ showing which server handled a request → added the `X-Served-By` header; avoiding repeated upstream calls → added a TTL cache; handling a slow or down API → 8 s timeout with separate 504/502 messages; keeping the wishlist after a new search → store the whole deal in localStorage.
+- **Deals service returned a 400 error.** My first version sent extra parameters to the CheapShark API, and it rejected the request. The app showed my red error message, which told me where the problem was. I simplified the request to only the parameters it needs and added a User-Agent header. I also made the server log CheapShark's reply so I can see the cause of future errors.
+- **Genres were not available in the API.** CheapShark does not return game genres, so I created a small catalog of famous games (`games.js`) with a genre for each one. It powers the genre filter and the poster strip.
+- **Posters not always loading.** Images come from Steam's servers, so some can fail to load. Each poster now tries a backup image address, then falls back to a plain tile with the game name.
+- **Wrong folder structure on GitHub.** When I first uploaded the files, `index.html`, `style.css` and `app.js` ended up outside the `public/` folder. The server serves its pages from `public/`, so the site would have shown nothing. I spotted it in the repo before deploying and moved the files.
+- **SSH login to the servers failed.** I got "Permission denied (publickey)". Using `ssh -v`, I saw that my laptop was not offering the key registered on the intranet, because it had a non-default file name. Once I used `-i` with the correct key file, I could log in.
+- **Practising on the wrong server.** My first deployment went to a sandbox environment that was not one of my assigned servers. I found the real servers (7257-web-01, 7257-web-02 and 7257-lb-01) on the intranet "My Servers" page and redid the deployment there.
+- **Load balancer already running.** I wrote an nginx load balancer config, but Lb01 already had HAProxy on port 80. I read its configuration, confirmed it balanced between both web servers with health checks, and documented it (`deploy/haproxy.cfg`) instead of replacing it.
+- **Testing the setup.** On web-02, `curl localhost` returned an odd message even though the app worked. Testing `127.0.0.1` directly showed that nginx was serving the app correctly. I proved the load balancer works by calling `/health` repeatedly and checking that the server name alternates between `7257-web-01` and `7257-web-02`.
 
+**What I would improve with more time:** add HTTPS, a database or Redis cache shared by both servers, and automatic deployment with CI/CD.
 ## Project structure
 
 ```
